@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from statsmodels.tsa.arima.model import ARIMA
@@ -15,13 +15,15 @@ st.set_page_config(
 )
 
 # Reading the CSV file into a DataFrame
-df = pd.read_excel('CLRI FMCG ML Model Dataset Ajay Vikhram S M and Diwin Joshua.xlsx')  # Replace with your actual file path
+df = pd.read_excel('CLRI FMCG ML Model Dataset Ajay Vikhram S M and Diwin Joshua.xlsx')
 
-# Function to forecast using LSTM
+# Function to forecast using LSTM (revised)
 def forecast_lstm(df_country, start_year, end_year):
     # Preparing data for LSTM
     data = df_country['Export'].values.reshape(-1, 1)
-    scaler = MinMaxScaler()
+    
+    # Using StandardScaler
+    scaler = StandardScaler()  
     data = scaler.fit_transform(data)
 
     # Creating training dataset
@@ -37,24 +39,19 @@ def forecast_lstm(df_country, start_year, end_year):
             Y.append(dataset[i + look_back, 0])
         return np.array(X), np.array(Y)
 
-    look_back = 3  # Number of previous years to consider
+    look_back = 3  
     X_train, Y_train = create_dataset(train_data, look_back)
     X_test, Y_test = create_dataset(test_data, look_back)
 
-    # Reshaping input to be [samples, time steps, features]
     X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
     X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
-    # Create and fit the LSTM network
+    # Create and fit the LSTM network (simplified)
     model = Sequential()
-    model.add(LSTM(units=128, return_sequences=True, input_shape=(X_train.shape[1], 1), activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(LSTM(units=64, return_sequences=True, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(LSTM(units=32, activation='relu'))
+    model.add(LSTM(units=50, input_shape=(X_train.shape[1], 1))) 
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
-    model.fit(X_train, Y_train, epochs=500, batch_size=1, verbose=0)
+    model.fit(X_train, Y_train, epochs=100, batch_size=1, verbose=0) 
 
     # Make predictions on the training data
     train_predict = model.predict(X_train)
@@ -62,27 +59,26 @@ def forecast_lstm(df_country, start_year, end_year):
 
     # Forecasting future values
     future_predictions = []
-    last_values = data[-look_back:]  # Last 'look_back' values
+    last_values = data[-look_back:] 
     forecast_years = end_year - start_year + 1
-    for _ in range(forecast_years):  # Forecast for specified years
+    for _ in range(forecast_years):
         future_predict = model.predict(np.reshape(last_values, (1, look_back, 1)))
         future_predictions.append(future_predict[0, 0])
-        last_values = np.append(last_values[1:], future_predict[0, 0])  # Update last_values
+        last_values = np.append(last_values[1:], future_predict[0, 0])
 
     future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1))
-    return future_predictions.flatten(), train_predict  # Return both predictions
+    return future_predictions.flatten(), train_predict 
 
 # Function to forecast using ARIMA
 def forecast_arima(df_country, start_year, end_year, p=5, d=1, q=0):
     model = ARIMA(df_country['Export'], order=(p, d, q))
     model_fit = model.fit()
 
-    # Make predictions on the training data
-    train_predict = model_fit.predict(start=p, end=len(df_country)-1)  # Adjust start for ARIMA
+    train_predict = model_fit.predict(start=p, end=len(df_country)-1)
 
     forecast_years = end_year - start_year + 1
     forecast = model_fit.predict(start=len(df_country), end=len(df_country) + forecast_years - 1)
-    return forecast.values.flatten(), train_predict  # Return both predictions
+    return forecast.values.flatten(), train_predict
 
 # Streamlit app
 def main():
@@ -132,7 +128,7 @@ def main():
                 # Plot the forecast (ARIMA)
                 plt.figure(figsize=(figsize_width, figsize_height))
                 plt.plot(df_country['Year'], df_country['Export'], label='Actual')
-                plt.plot(df_country['Year'][5:], train_predict, label='Train Prediction')  # Plot train predictions, starting from year 5 to align with train_predict
+                plt.plot(df_country['Year'][5:], train_predict, label='Train Prediction') 
                 plt.plot(range(start_year, end_year + 1), forecast, label='Forecast')
                 plt.xlabel('Year')
                 plt.ylabel(f'Export to {country_name} from India in US$ Thousand (Hides and Skins)')
@@ -146,15 +142,15 @@ def main():
                 plt.plot(df_country['Year'], df_country['Export'], label='Actual')
 
                 # Adjust the x-axis values to match the length of train_predict for LSTM
-                train_years = df_country['Year'][3:-3]  # Exclude the first 3 and last 3 years
-                plt.plot(train_years[:len(train_predict)], train_predict, label='Train Prediction')  # Plot train predictions
+                train_years = df_country['Year'][3:-3] 
+                plt.plot(train_years[:len(train_predict)], train_predict, label='Train Prediction')
 
                 plt.plot(range(start_year, end_year + 1), forecast, label='Forecast')
                 plt.xlabel('Year')
                 plt.ylabel(f'Export to {country_name} from India in US$ Thousand (Hides and Skins)')
                 plt.title(f'Forecast of Export to {country_name} from India in US$ Thousand (Hides and Skins)')
                 max_value = max(df_country['Export'].max(), max(forecast))
-                plt.ylim(0, max_value * 1.5)
+                plt.ylim(0, max_value * 1.5) 
                 plt.legend()
                 st.pyplot(plt)
 
@@ -209,7 +205,7 @@ def main():
                 # Plot the forecast (ARIMA)
                 plt.figure(figsize=(figsize_width, figsize_height))
                 plt.plot(edited_df['Year'], edited_df['Export'], label='Actual (Edited)')
-                plt.plot(edited_df['Year'][5:], train_predict, label='Train Prediction')  # Plot train predictions, starting from year 5 to align with train_predict
+                plt.plot(edited_df['Year'][5:], train_predict, label='Train Prediction')
                 plt.plot(range(start_year, end_year + 1), forecast, label='Forecast')
                 plt.xlabel('Year')
                 plt.ylabel(f'Export to {country_name} from India in US$ Thousand (Hides and Skins)')
@@ -223,15 +219,15 @@ def main():
                 plt.plot(edited_df['Year'], edited_df['Export'], label='Actual (Edited)')
 
                 # Adjust the x-axis values to match the length of train_predict for LSTM
-                train_years = edited_df['Year'][3:-3]  # Exclude the first 3 and last 3 years
-                plt.plot(train_years[:len(train_predict)], train_predict, label='Train Prediction')  # Plot train predictions
+                train_years = edited_df['Year'][3:-3]
+                plt.plot(train_years[:len(train_predict)], train_predict, label='Train Prediction') 
 
                 plt.plot(range(start_year, end_year + 1), forecast, label='Forecast')
                 plt.xlabel('Year')
                 plt.ylabel(f'Export to {country_name} from India in US$ Thousand (Hides and Skins)')
                 plt.title(f'Forecast of Export to {country_name} from India in US$ Thousand (Hides and Skins)')
                 max_value = max(edited_df['Export'].max(), max(forecast))
-                plt.ylim(0, max_value * 1.5)
+                plt.ylim(0, max_value * 1.5) 
                 plt.legend()
                 st.pyplot(plt)
 
